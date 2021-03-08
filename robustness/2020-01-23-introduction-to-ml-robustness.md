@@ -4,6 +4,7 @@ title: How can we make Machine Learning safer and more stable? Introduction to M
 modified: 2020-01-23
 share: false
 tags: [machine-learning, robustness, security, reasoning, tensorflow]
+comments: true
 ---
 
 Machine Learning models are great and powerful.
@@ -11,6 +12,8 @@ However, the usual characteristics of regular training can lead to serious conse
 In this blog post we will take a step back to revisit a regular optimization problem using an example of a binary classification.
 We will show a way to create more robust and stable models which use features that are more meaningful to humans.
 In our experiments we will do a simple binary classification to recognize the digits zero and one from the MNIST dataset. 
+
+![perturbation_boxes](https://github.com/rolczynski/Articles/blob/master/robustness/images/perturbation_boxes.png?raw=true)
 
 Firstly, we will introduce why regular training is not perfect. 
 Next, we will briefly sum up what regular training looks like, and then we will outline more robust training. 
@@ -64,20 +67,15 @@ to predict the correct target $$y$$, where $$y \in \{ -1, 1\}$$ is in the binary
 The binary loss function can be simplified to the one-argument function $$ L(y \cdot \hat{y})$$, 
 and we can use the elegant hinge loss, which is known as the soft-margin in the SVM.
 To fully satisfy the loss, the model has to not only ideally separate classes 
-but also preserve a sufficient margin between them 
-(figures code [left](plots/hinge_loss.py) and [right](plots/hinge_margin.py)).
+but also preserve a sufficient margin between them.
 
-![Hinge loss and margin](/images/2020-01-23/hinge_loss_margin.png)
+![Hinge loss and margin](https://github.com/rolczynski/Articles/blob/master/robustness/images/hinge_loss_margin.png?raw=true)
 
 For our experiment, we use a simple linear classifier, so the model has only a single vector $$w$$ and bias $$b$$. 
-The landscape of loss in terms of $$x_i$$ for non-linear models is highly irregular 
-(left figure, code [here](plots/landscape_complex.py)), however in our case, 
-it is just a straight line (right figure, code [here](plots/landscape_simple.py)).
+The landscape of loss in terms of $$x_i$$ for non-linear models is highly irregular (left figure), however in our case, 
+it is just a straight line (right figure).
 
-<p align="middle">
-<img src="plots/landscape_complex.png" width="400" alt=""/>
-<img src="plots/landscape_simple.png" width="400" alt=""/> 
-</p>
+![Landscape Complex](https://github.com/rolczynski/Articles/blob/master/robustness/images/landscape.png?raw=true) 
 
 Using a dataset and an optimization method gradient descent, we follow the gradient and look for the model parameters,
 which minimize the loss function:
@@ -104,9 +102,8 @@ In consequence, we face the min-max problem, and two related challenges.
 
 $$ \min_{w,b} \frac{1}{D} \sum_{(x,y) \in D} \max_{\delta \in \Delta} L (y \cdot (w^T(x+ \delta) + b)) $$
 
-
 Firstly, how can we construct valid perturbations $$ \Delta $$?
-We want to formulate a space (epsilon-neighbourhood) around $$x$$ (figure below, code [here](plots/perturbation_boxes.py)), 
+We want to formulate a space (epsilon-neighbourhood) around $$x$$ (figure below), 
 which sustains human understanding about this space. 
 In our case, if a point $$x$$ describes the digit one, then we have to guarantee that each perturbation $$x+\delta$$ 
 looks like the digit one. 
@@ -117,11 +114,7 @@ In our experiments, we are using the infinity norm $$|| \cdot ||_\infty$$ (other
 These tiny boxes are neat, because valid perturbations are in the range $$−\epsilon$$ to $$\epsilon$$, 
 independent of dimension.
 
-<p align="middle">
-<img src="plots/perturbation_boxes.png" width="400" alt=""/>
-</p>
-
-<br/>
+![perturbation_boxes](https://github.com/rolczynski/Articles/blob/master/robustness/images/perturbation_boxes.png?raw=true) 
 
 The second challenge is how to solve the inner maximization problem.
 Most advanced ML models are highly non-linear, so this is tough in general. 
@@ -133,38 +126,34 @@ because the loss directly depends on $$x$$, our simplified loss landscape
 
 $$ \min_{w,b} \frac{1}{D} \sum_{(x,y) \in D} L \left(y \cdot (w^Tx + b) − \epsilon \|w\|_1 \right ) $$
 
-<br/>
-
 The basic intuition is that we do not penalize high weights, 
 which are far from the decision boundary (in contrast to regularization $$L_1$$).
 However, this is far from a complete explanation. 
 
 Firstly, the loss does not penalize if a classifier makes a mistake 
-that is close to the decision boundary (left figure, code [here](plots/hinge_robust.py)).
+that is close to the decision boundary (left figure).
 The error tolerance dynamically changes with regards to model weights, shifting the loss curve. 
 As opposed  to regular training, we do not force a strictly defined margin to be preserved, 
 which sometimes can not be achieved.
 
-<p align="middle">
-<img src="plots/hinge_robust.png" width="400" alt=""/>
-<img src="plots/landscape_robust.png" width="400" alt=""/> 
-</p>
+![gradient](https://github.com/rolczynski/Articles/blob/master/robustness/images/gradient.png?raw=true) 
 
-Secondly, the back propagation is different (right figure, code [here](plots/landscape_robust.py)). 
+
+Secondly, the back propagation is different (right figure). 
 The gradient is not only diminished, but also if it is smaller than epsilon, it can even change the sign. 
 As a result, the weights that are smaller than epsilon are gently wiped off. 
 
 Finally, our goal is to minimize the expected value of the loss not only of input $$x$$, 
-but the entire subspace around $$x$$:
+but the close neighbourhood around $$x$$:
 
-$$ \min_{\theta} \underset{(x,y) \in D} {\mathbb{E}} \big \[ \max_{\delta \in \Delta} \ell ( h_{\theta}(x), y ) \big \] $$
+$$ \min_{w,b} \frac{1}{D} \sum_{(x,y) \in D} \mathbb{E} \left[ \max_{\delta \in \Delta} \ell ( h_{\theta}(x), y ) \right] $$
 
 <br/>
 
 ## Experiments
 
 As we have already mentioned, today, we are doing a simple binary classification. 
-Let's briefly present regular training (code [here](experiment_regular.py)). 
+Let's briefly present regular training. 
 We reduce the MNIST dataset to include exclusively only the digits zero and one (transforming the original dataset here). 
 We build a regular linear classifier, SGD optimizer, and hinge loss. 
 We work with the high-level Keras under Tensorflow 2.0 with eager execution (PyTorch alike). 
@@ -183,8 +172,6 @@ sgd_optimizer = keras.optimizers.SGD(learning_rate=.1)
 hinge_loss = keras.losses.Hinge()  # This is: max(0, 1 - y_true * y_pred), where y_true in {+1, -1}
 ```
 
-<br/>
-
 In contrast to just invoking the built-in `fit` method, we build the custom routine 
 to have full access to any variable or gradient. 
 We abstract the `train_step`, which processes a single batch. 
@@ -201,11 +188,8 @@ def train_step(inputs, targets):        # Inject dependencies: a model, loss, an
     return predicted_labels, loss_value, gradients
 ```
 
-<br/>
-
 The robust training is similar. 
-The crucial change is the customized loss, which contains additionally $$− \epsilon \|w\|_1$$ term. 
-More details are [here](experiment_robust.py).
+The crucial change is the customized loss, which contains additionally $$− \epsilon \|w\|_1$$ term.
 
 ```python
 def robust_hinge_loss(model, y_hat, y):     # Inject the epsilon
@@ -224,30 +208,22 @@ def robust_hinge_loss(model, y_hat, y):     # Inject the epsilon
 
 We do a binary classification to recognize the digits zero and one from the MNIST dataset. 
 We train regular and robust models using presented scripts ([1](experiment_regular.py), [2](experiment_robust.py)). 
-Our regular model achieves super results (robust models are slightly worse). 
+Our regular model achieves super results (robust models are slightly worse).
 
-<p align="middle">
-<img src="plots/accuracy.png" width="400" alt=""/>
-</p>
+![accuracy](https://github.com/rolczynski/Articles/blob/master/robustness/images/accuracy.png?raw=true) 
 
-<br/>
-
-We have only single mistakes (figure below, code [here](plots/misclassified_regular.py)). 
+We have only single mistakes (figure below). 
 A dot around a digit causes general confusion. 
 Nevertheless, we have incredibly precise classifiers. 
-We have achieved human performance in recognizing handwritten digits zero and one, haven’t we? 
+We have achieved human performance in recognizing handwritten digits zero and one, haven’t we?
 
-<p align="middle">
-<img src="plots/misclassified_regular.png" width="300" alt=""/>
-</p>
-
-<br/>
+![misclassified_regular](https://github.com/rolczynski/Articles/blob/master/robustness/images/misclassified_regular.png?raw=true)
 
 Not really. 
 We can precisely predict (without overfitting, 
 take a look at the tiny gap between the train and the test results), that's all. 
 We are absolutely far from human reasoning when it comes to recognizing the digits zero and one. 
-To demonstrate this, we can check the model weights (figure below, code [here](plots/model_weights.py)). 
+To demonstrate this, we can check the model weights (figure below). 
 Our classifiers are linear therefore the reasoning is straightforward. 
 You can imagine a kind of a single stamp. 
 The decision moves toward the  digit one if black pixels are activated (and to the digit zero if white). 
@@ -255,11 +231,7 @@ The regular model contains a huge amount of weak features, which do not make sen
 In contrast, robust models  wipe out weak features (which are smaller than epsilon), 
 and stick with more robust and human aligned features.
 
-<p align="middle">
-<img src="plots/model_weights.png" width="500" alt=""/>
-</p>
-
-<br/>
+![model_weights](https://github.com/rolczynski/Articles/blob/master/robustness/images/model_weights.png?raw=true) 
 
 Now, we will make several white-box adversarial attacks and try to fool our models. 
 We evaluate the models on perturbed test datasets, in which each sample is moved directly towards a decision boundary. 
@@ -267,38 +239,28 @@ In our linear case, the perturbations can be easily defined as:
 
 $$ \delta^\star = − y \epsilon \cdot \mathrm{sign}(w) $$
 
-where we check out several epsilons (figure below, code [here](plots/accuracy_noise.py)).
+where we check out several epsilons (figure below).
 
-<p align="middle">
-<img src="plots/accuracy_noise.png" width="500" alt=""/>
-</p>
-
-<br/>
+![accuracy_noise](https://github.com/rolczynski/Articles/blob/master/robustness/images/accuracy_noise.png?raw=true) 
 
 As we expect, the regular model is brittle due to the huge amount of weak features. 
 Below, we present the misclassified samples which are closest to the boundary decision 
-(predicted logits are around zero, figure code [here](plots/misclassified_noise.py)). 
+(predicted logits are around zero). 
 Now, we can understand how perturbed images are so readable to humans  e.g. $$\epsilon=0.2$$ 
 where the regular classifier has the accuracy around zero. 
 The regular classifier absolutely does not know what the digit zero or one looks like. 
 In contrast, robust models are generally confused about the different digit structures, nonetheless, 
 the patterns are more robust and understandable to us.
 
-<p align="middle">
-<img src="plots/misclassified_noise.png" width="800" alt=""/>
-</p>
-
-<br/>
+![misclassified_noise](https://github.com/rolczynski/Articles/blob/master/robustness/images/misclassified_noise.png?raw=true)
 
 In the end, we present a slightly different perspective.
 Take a look at the logit distributions of misclassified samples. 
 We see that the regular model is extremely confident about wrong predictions. 
 In contrast, the robust model (even if it is fooled) is uncertain, because logits tend to be close to zero. 
-Robust models seem to be more reliable (figure code [here](plots/misclassified_logits.png)). 
+Robust models seem to be more reliable (figure below). 
 
-<p align="middle">
-<img src="plots/misclassified_logits.png" width="800" alt=""/>
-</p>
+![misclassified_logits](https://github.com/rolczynski/Articles/blob/master/robustness/images/misclassified_logits.png?raw=true) 
 
 <br/>
 
@@ -314,11 +276,6 @@ Of course, things are more complex if we want to force deep neural networks to b
 because performance rapidly declines, and models become useless. 
 Nonetheless, the ML community is working hard to popularize and develop the idea of a robust ML, 
 as this blog post has tried to do.
-
-<br/>
-
-In the next blog posts, we will present how to achieve more robust deep neural networks, 
-and how they can be super meaningful.
 
 <br/>
 
